@@ -50,3 +50,12 @@ Until then customers see Pay on Delivery only.
 ## Other settings
 `STORE_NAME`, `STORE_PHONE`, `CURRENCY` (default `KSh`), `DELIVERY_FEE` (default 200),
 `FREE_DELIVERY_OVER` (default 5000).
+
+## Connect Davetech Importer
+Davetech Importer publishes AliExpress products here and reads orders back.
+1. On Render, add `IMPORTER_API_KEY` — a long random secret (at least 32 characters).
+2. In Davetech Importer → Integrations, enter this shop's address and the same key.
+
+The importer talks to `/api/integration/v1/*` (health, categories, products, orders).
+Requests without the key are refused. M-Pesa payments are now double-checked with
+Safaricom (STK Query) and the paid amount before an order is marked paid.
