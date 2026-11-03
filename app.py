@@ -4,7 +4,9 @@ Features: catalogue with categories & search, session cart, checkout,
 M-Pesa STK Push (Daraja) or Pay on Delivery, order tracking, admin panel.
 """
 import os
+import json
 import base64
+import hmac
 import secrets
 from datetime import datetime
 from functools import wraps
@@ -36,6 +38,7 @@ DROPSHIP_MAX_QTY = 20
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
+IMPORTER_API_KEY = os.environ.get("IMPORTER_API_KEY", "")  # shared with Davetech Importer
 
 MPESA = {
     "key": os.environ.get("MPESA_CONSUMER_KEY", ""),
@@ -75,6 +78,18 @@ class Product(db.Model):
     supplier_cost = db.Column(db.Integer, default=0)      # KSh you pay AliExpress for the item
     supplier_shipping = db.Column(db.Integer, default=0)  # KSh shipping you pay AliExpress
     delivery_days = db.Column(db.String(40), default="")
+    # --- Davetech Importer integration
+    external_id = db.Column(db.String(64), index=True)   # importer product id (unique per product)
+    images = db.Column(db.Text, default="")               # JSON list of extra image URLs
+    sku = db.Column(db.String(80), default="")
+
+    @property
+    def gallery(self):
+        try:
+            extra = json.loads(self.images or "[]")
+        except ValueError:
+            extra = []
+        return [u for u in ([self.image] + [i for i in extra if i != self.image]) if u]
 
     @property
     def available(self):
@@ -150,6 +165,8 @@ def get_csrf():
 
 @app.before_request
 def check_csrf():
+    if request.path.startswith("/api/integration/"):
+        return  # authenticated with the importer API key instead of a form token
     if request.method == "POST" and request.endpoint != "mpesa_callback":
         if request.form.get("_csrf") != session.get("_csrf"):
             abort(400, "Form expired — please go back and try again.")
@@ -226,20 +243,45 @@ def mpesa_stk_push(order):
     return False, data.get("errorMessage") or data.get("ResponseDescription") or "M-Pesa request failed"
 
 
+def mpesa_stk_query(checkout_id):
+    """Ask Safaricom directly whether a payment succeeded (authoritative check)."""
+    ts = datetime.now().strftime("%Y%m%d%H%M%S")
+    password = base64.b64encode(f"{MPESA['shortcode']}{MPESA['passkey']}{ts}".encode()).decode()
+    r = requests.post(f"{mpesa_base()}/mpesa/stkpushquery/v1/query",
+                      json={"BusinessShortCode": MPESA["shortcode"], "Password": password,
+                            "Timestamp": ts, "CheckoutRequestID": checkout_id},
+                      headers={"Authorization": f"Bearer {mpesa_token()}"}, timeout=30)
+    return r.json()
+
+
 @app.route("/mpesa/callback", methods=["POST"])
 def mpesa_callback():
     data = (request.get_json(silent=True) or {}).get("Body", {}).get("stkCallback", {})
     order = Order.query.filter_by(mpesa_checkout_id=data.get("CheckoutRequestID")).first()
-    if order:
-        if data.get("ResultCode") == 0:
-            items = {i["Name"]: i.get("Value") for i in data.get("CallbackMetadata", {}).get("Item", [])}
+    if not order or order.payment_status == "paid":   # unknown or already handled (duplicate callback)
+        return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
+    if data.get("ResultCode") == 0:
+        items = {i["Name"]: i.get("Value") for i in data.get("CallbackMetadata", {}).get("Item", [])}
+        amount_ok = int(float(items.get("Amount") or 0)) >= order.total
+        confirmed = False
+        try:  # never trust the callback body alone
+            q = mpesa_stk_query(order.mpesa_checkout_id)
+            confirmed = str(q.get("ResultCode")) == "0"
+        except Exception as e:  # Safaricom unreachable: leave pending, admin can re-check
+            app.logger.warning("STK query failed for %s: %s", order.code, e)
+        if confirmed and amount_ok:
             order.payment_status = "paid"
             order.mpesa_receipt = str(items.get("MpesaReceiptNumber", ""))
             if order.status == "new":
                 order.status = "processing"
-        else:
+        elif not amount_ok:
             order.payment_status = "failed"
-        db.session.commit()
+            order.notes = (order.notes + f"\n[M-Pesa] amount {items.get('Amount')} lower than total").strip()
+        else:
+            order.payment_status = "pending"
+    else:
+        order.payment_status = "failed"
+    db.session.commit()
     return jsonify({"ResultCode": 0, "ResultDesc": "Accepted"})
 
 
@@ -584,6 +626,157 @@ def admin_order_detail(oid):
         flash("Order updated.", "success")
         return redirect(url_for("admin_order_detail", oid=oid))
     return render_template("admin/order_detail.html", order=order, statuses=ORDER_STATUSES)
+
+
+# ---------------------------------------------------------------- integration API (Davetech Importer)
+API_VERSION = "1.0"
+
+
+def api_auth(f):
+    @wraps(f)
+    def wrapper(*a, **kw):
+        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not IMPORTER_API_KEY or len(IMPORTER_API_KEY) < 16:
+            return jsonify({"error": "IMPORTER_API_KEY is not set on the shop"}), 503
+        if not hmac.compare_digest(token.encode(), IMPORTER_API_KEY.encode()):
+            return jsonify({"error": "invalid API key"}), 401
+        return f(*a, **kw)
+    return wrapper
+
+
+def order_json(o):
+    ext = {p.id: p.external_id for p in Product.query.filter(
+        Product.id.in_([i.product_id for i in o.items if i.product_id])).all()} if o.items else {}
+    return {
+        "id": o.id, "code": o.code, "name": o.name, "phone": o.phone, "email": o.email,
+        "address": o.address, "notes": o.notes, "subtotal": o.subtotal, "delivery": o.delivery,
+        "total": o.total, "payment_method": o.payment_method, "payment_status": o.payment_status,
+        "mpesa_receipt": o.mpesa_receipt, "status": o.status,
+        "supplier_order_no": o.supplier_order_no or "", "tracking_no": o.tracking_no or "",
+        "created": o.created.isoformat() + "Z",
+        "items": [{"product_id": i.product_id, "name": i.name, "price": i.price, "qty": i.qty,
+                   "dropship": bool(i.dropship), "supplier_url": i.supplier_url or "",
+                   "supplier_cost": i.supplier_cost or 0, "external_id": ext.get(i.product_id)}
+                  for i in o.items],
+    }
+
+
+@app.route("/api/integration/v1/health")
+@api_auth
+def api_health():
+    return jsonify({"ok": True, "store_name": STORE_NAME, "currency": CURRENCY, "version": API_VERSION})
+
+
+@app.route("/api/integration/v1/categories", methods=["GET", "POST"])
+@api_auth
+def api_categories():
+    if request.method == "POST":
+        name = str((request.get_json(silent=True) or {}).get("name", "")).strip()[:80]
+        if not name:
+            return jsonify({"error": "name required"}), 400
+        c = Category.query.filter(func.lower(Category.name) == name.lower()).first()
+        if not c:
+            c = Category(name=name)
+            db.session.add(c)
+            db.session.commit()
+        return jsonify({"id": c.id, "name": c.name})
+    return jsonify({"categories": [{"id": c.id, "name": c.name} for c in Category.query.order_by(Category.name)]})
+
+
+@app.route("/api/integration/v1/products/<external_id>", methods=["PUT", "DELETE"])
+@api_auth
+def api_product(external_id):
+    p = Product.query.filter_by(external_id=external_id).first()
+    if request.method == "DELETE":
+        if not p:
+            return jsonify({"result": "not_found"})
+        if OrderItem.query.filter_by(product_id=p.id).first():
+            p.active = False
+            result = "hidden"
+        else:
+            db.session.delete(p)
+            result = "deleted"
+        db.session.commit()
+        return jsonify({"result": result})
+
+    d = request.get_json(silent=True) or {}
+    try:
+        name = str(d["name"]).strip()[:160]
+        price = int(d["price"])
+    except (KeyError, ValueError, TypeError):
+        return jsonify({"error": "name and integer price are required"}), 400
+    if not name or price <= 0:
+        return jsonify({"error": "name and a price above 0 are required"}), 400
+    image = str(d.get("image") or "")
+    if image and not image.startswith("https://"):
+        return jsonify({"error": "image must be an https URL"}), 400
+    cat_id = d.get("category_id")
+    if cat_id is not None and not db.session.get(Category, int(cat_id)):
+        return jsonify({"error": "unknown category_id"}), 400
+
+    created = p is None
+    if created:
+        p = Product(external_id=external_id, stock=0, featured=False)
+        db.session.add(p)
+    p.name = name
+    p.description = str(d.get("description") or "")
+    p.price = price
+    p.old_price = int(d["old_price"]) if d.get("old_price") else None
+    p.image = image
+    p.images = json.dumps([u for u in (d.get("images") or []) if isinstance(u, str) and u.startswith("https://")][:10])
+    p.category_id = int(cat_id) if cat_id is not None else None
+    p.active = bool(d.get("active", True))
+    p.dropship = bool(d.get("dropship", True))
+    p.supplier_url = str(d.get("supplier_url") or "")
+    p.supplier_cost = int(d.get("supplier_cost") or 0)
+    p.supplier_shipping = int(d.get("supplier_shipping") or 0)
+    p.delivery_days = str(d.get("delivery_days") or p.delivery_days or "")[:40]
+    p.sku = str(d.get("sku") or "")[:80]
+    db.session.commit()
+    return jsonify({"id": p.id, "created": created})
+
+
+@app.route("/api/integration/v1/orders")
+@api_auth
+def api_orders():
+    q = Order.query
+    since = request.args.get("since")
+    if since:
+        try:
+            q = q.filter(Order.created >= datetime.fromisoformat(since.replace("Z", "")))
+        except ValueError:
+            return jsonify({"error": "since must be ISO date"}), 400
+    if request.args.get("status"):
+        q = q.filter_by(status=request.args["status"])
+    limit = min(request.args.get("limit", 200, type=int), 1000)
+    return jsonify({"orders": [order_json(o) for o in q.order_by(Order.created.desc()).limit(limit)]})
+
+
+@app.route("/api/integration/v1/orders/<code>", methods=["PATCH"])
+@api_auth
+def api_order_update(code):
+    o = Order.query.filter_by(code=code.upper()).first()
+    if not o:
+        return jsonify({"error": "order not found"}), 404
+    d = request.get_json(silent=True) or {}
+    if "supplier_order_no" in d:
+        if d["supplier_order_no"] and o.payment_status != "paid" and o.payment_method != "cod":
+            return jsonify({"error": "customer payment not verified"}), 400
+        o.supplier_order_no = str(d["supplier_order_no"]).strip()[:60]
+    if "tracking_no" in d:
+        new_tracking = str(d["tracking_no"]).strip()[:60]
+        if new_tracking and not o.tracking_no and o.status in ("new", "processing"):
+            o.status = "shipped"
+        o.tracking_no = new_tracking
+    if d.get("status") in ORDER_STATUSES:
+        if d["status"] == "cancelled" and o.status != "cancelled":
+            for it in o.items:
+                prod = db.session.get(Product, it.product_id) if it.product_id else None
+                if prod and not prod.dropship:
+                    prod.stock += it.qty
+        o.status = d["status"]
+    db.session.commit()
+    return jsonify({"order": order_json(o)})
 
 
 @app.errorhandler(404)

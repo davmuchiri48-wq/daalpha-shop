@@ -103,3 +103,6 @@ footer.site a{color:#d1d5db}
   .search{order:3;flex-basis:100%}
 }
 .tag.ship{left:auto;right:8px;background:#1e40af}
+
+.thumbs{display:flex;gap:8px;margin-top:8px;overflow-x:auto}
+.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #ddd}
