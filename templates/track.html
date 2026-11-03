@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Track order · {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:440px;margin:0 auto">
+  <h1 style="margin-top:0">Track your order</h1>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Order code</label><input name="code" required placeholder="e.g. A1B2C3">
+    <label>Phone number used</label><input name="phone" required placeholder="0712345678">
+    <button class="btn block" style="margin-top:16px">Track</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<a href="{{ url_for('admin_products') }}">← Products</a>
+<h1>{{ 'Edit' if p.id else 'Add' }} product</h1>
+<form method="post" enctype="multipart/form-data" class="cols">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="panel">
+    <label>Name *</label><input name="name" required value="{{ p.name or '' }}">
+    <label>Description</label><textarea name="description" rows="6">{{ p.description or '' }}</textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div><label>Price (KSh) *</label><input name="price" type="number" min="1" required value="{{ p.price or '' }}"></div>
+      <div><label>Old price</label><input name="old_price" type="number" min="0" value="{{ p.old_price or '' }}" placeholder="optional"></div>
+      <div><label>Stock (own stock)</label><input name="stock" type="number" min="0" required value="{{ p.stock if p.stock is not none else 0 }}"></div>
+    </div>
+    <label>Category</label>
+    <select name="category_id">
+      <option value="">— None —</option>
+      {% for c in all_categories %}<option value="{{ c.id }}" {{ 'selected' if p.category_id==c.id }}>{{ c.name }}</option>{% endfor %}
+    </select>
+    <div class="panel" style="background:#fff7ed;border-color:#fed7aa;margin-top:16px">
+      <label class="check" style="margin-top:0"><input type="checkbox" name="dropship" id="dropship" {{ 'checked' if p.dropship }}> <b>✈️ AliExpress product (dropship)</b></label>
+      <div id="dsfields">
+        <label>AliExpress product link</label>
+        <input name="supplier_url" placeholder="https://www.aliexpress.com/item/..." value="{{ p.supplier_url or '' }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><label>Item cost on AliExpress (KSh)</label><input name="supplier_cost" id="sc" type="number" min="0" value="{{ p.supplier_cost or '' }}"></div>
+          <div><label>Shipping cost (KSh)</label><input name="supplier_shipping" id="ss" type="number" min="0" value="{{ p.supplier_shipping or '' }}"></div>
+        </div>
+        <label>Delivery time shown to customers</label>
+        <input name="delivery_days" placeholder="{{ DROPSHIP_DAYS }}" value="{{ p.delivery_days or '' }}">
+        <p id="calc" class="muted" style="font-size:14px"></p>
+        <button type="button" class="btn sm light" id="usesug">Use suggested price</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="featured" {{ 'checked' if p.featured }}> Show in “Hot deals”</label>
+    <label class="check"><input type="checkbox" name="active" {{ 'checked' if p.active }}> Visible in shop</label>
+  </div>
+  <div class="panel">
+    <label style="margin-top:0">Image</label>
+    {% if p.image %}<img src="{{ p.image }}" alt="" style="border-radius:8px;margin-bottom:8px">{% endif %}
+    <label>Upload photo (max 3 MB)</label><input type="file" name="image_file" accept="image/*">
+    <label>…or paste image link</label><input name="image_url" placeholder="https://…" value="{{ p.image if p.image and not p.image.startswith('data:') else '' }}">
+    <button class="btn block" style="margin-top:16px">Save product</button>
+  </div>
+</form>
+<script>
+(function(){
+  const ds=document.getElementById('dropship'), box=document.getElementById('dsfields');
+  const sc=document.getElementById('sc'), ss=document.getElementById('ss'), price=document.querySelector('[name=price]');
+  const calc=document.getElementById('calc');
+  function sug(){ const c=(+sc.value||0)+(+ss.value||0); return Math.ceil(c*2.2/50)*50; }
+  function upd(){
+    box.style.display=ds.checked?'':'none';
+    const c=(+sc.value||0)+(+ss.value||0), p=+price.value||0;
+    calc.innerHTML = c ? `Your cost: <b>KSh ${c.toLocaleString()}</b> · Profit at current price: <b style="color:${p-c>0?'#16a34a':'#dc2626'}">KSh ${(p-c).toLocaleString()}</b> · Suggested price (≈2.2×, covers M-Pesa fees, ads &amp; any customs): <b>KSh ${sug().toLocaleString()}</b>` : 'Enter costs to see your profit.';
+  }
+  document.getElementById('usesug').onclick=()=>{ price.value=sug(); upd(); };
+  [ds,sc,ss,price].forEach(e=>e.addEventListener('input',upd)); upd();
+})();
+</script>
+{% endblock %}

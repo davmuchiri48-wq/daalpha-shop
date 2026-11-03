@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not q and not cat %}
+<section class="hero">
+  <div>
+    <h1>Quality products, delivered to your door</h1>
+    <p>Shop electronics, fashion, home & more. Free delivery on orders over KSh 5,000.</p>
+  </div>
+  <a class="btn accent" href="#all">Shop now</a>
+</section>
+{% if featured %}
+<h2 class="section">🔥 Hot deals</h2>
+<div class="grid" style="margin-bottom:32px">
+  {% for p in featured %}{% include "_card.html" %}{% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+<div id="all" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+  <h2 class="section" style="margin:0">
+    {% if q %}Results for “{{ q }}”{% elif current_cat %}{{ current_cat.name }}{% else %}All products{% endif %}
+    <span class="muted" style="font-weight:400;font-size:14px">({{ products|length }})</span>
+  </h2>
+  <form>
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+    {% if cat %}<input type="hidden" name="cat" value="{{ cat }}">{% endif %}
+    <select name="sort" onchange="this.form.submit()" style="width:auto">
+      <option value="new" {{ 'selected' if sort=='new' }}>Newest</option>
+      <option value="price_asc" {{ 'selected' if sort=='price_asc' }}>Price: low to high</option>
+      <option value="price_desc" {{ 'selected' if sort=='price_desc' }}>Price: high to low</option>
+    </select>
+  </form>
+</div>
+{% if products %}
+<div class="grid">{% for p in products %}{% include "_card.html" %}{% endfor %}</div>
+{% else %}
+<div class="panel" style="text-align:center">No products found. <a href="{{ url_for('index') }}">See all products</a></div>
+{% endif %}
+{% endblock %}

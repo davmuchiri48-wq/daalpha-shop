@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Order {{ order.code }} · {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:720px;margin:0 auto">
+  <h1 style="margin-top:0">{% if order.status == 'cancelled' %}Order cancelled{% else %}Thank you, {{ order.name.split(' ')[0] }}! 🎉{% endif %}</h1>
+  <p>Your order code is <b style="font-size:20px">{{ order.code }}</b>. Keep it to track your order.</p>
+
+  {% if order.status != 'cancelled' %}
+  <div class="steps">
+    {% set idx = statuses.index(order.status) %}
+    {% for s in statuses[:4] %}<div class="{{ 'done' if loop.index0 <= idx }}">{{ s }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <p>Payment: <b>{{ 'M-Pesa' if order.payment_method == 'mpesa' else ('M-Pesa (manual)' if order.has_dropship else 'Pay on delivery') }}</b>
+    <span class="pill {{ order.payment_status }}" id="paystatus">{{ order.payment_status }}</span>
+    {% if order.mpesa_receipt %} · Receipt <b>{{ order.mpesa_receipt }}</b>{% endif %}</p>
+
+  {% if order.payment_status == 'pending' %}
+  <p class="muted" id="waitmsg">⏳ Waiting for M-Pesa confirmation — enter your PIN on your phone. This page updates automatically.</p>
+  {% endif %}
+
+  {% if mpesa_on and order.payment_status in ['unpaid','failed','pending'] and order.status != 'cancelled' %}
+  <form method="post" action="{{ url_for('order_pay', code=order.code) }}" style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input name="phone" value="{{ order.phone }}" style="flex:1;min-width:160px">
+    <button class="btn">{{ 'Retry' if order.payment_status in ['failed','pending'] else 'Pay now' }} with M-Pesa</button>
+  </form>
+  {% endif %}
+
+  {% if order.tracking_no %}
+  <div class="flash success">📦 Shipped! Tracking number: <b>{{ order.tracking_no }}</b> ·
+    <a href="https://t.17track.net/en#nums={{ order.tracking_no }}" target="_blank" rel="noopener">Track parcel ↗</a></div>
+  {% elif order.has_dropship and order.status != 'cancelled' %}
+  <p class="muted">✈️ This order has imported items ({{ DROPSHIP_DAYS }}). You'll see a tracking number here once shipped.</p>
+  {% endif %}
+  <h3>Items</h3>
+  {% for it in order.items %}
+  <div class="row"><span>{{ it.qty }} × {{ it.name }}</span><span>{{ (it.qty * it.price)|money }}</span></div>
+  {% endfor %}
+  <div class="row"><span>Delivery</span><span>{{ 'FREE' if order.delivery == 0 else order.delivery|money }}</span></div>
+  <div class="row total"><span>Total</span><span>{{ order.total|money }}</span></div>
+
+  <h3>Delivery to</h3>
+  <p>{{ order.name }} · {{ order.phone }}<br>{{ order.address }}</p>
+  <p class="muted">Questions? Call or WhatsApp {{ STORE_PHONE }} and quote {{ order.code }}.</p>
+  <a class="btn light" href="{{ url_for('index') }}">Continue shopping</a>
+</div>
+{% if order.payment_status == 'pending' %}
+<script>
+  const t = setInterval(async () => {
+    const r = await fetch("{{ url_for('order_status_json', code=order.code) }}");
+    const d = await r.json();
+    if (d.payment_status !== 'pending') { clearInterval(t); location.reload(); }
+  }, 4000);
+  setTimeout(() => clearInterval(t), 180000);
+</script>
+{% endif %}
+{% endblock %}

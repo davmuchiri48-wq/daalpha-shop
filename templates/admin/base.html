@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ STORE_NAME }}{% endblock %}
+{% block header %}
+<nav class="admin-nav"><div class="container">
+  <a class="logo" style="font-size:18px" href="{{ url_for('admin_dashboard') }}">⚙️ {{ STORE_NAME }} Admin</a>
+  {% if session.admin %}
+  <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+  <a href="{{ url_for('admin_orders') }}">Orders</a>
+  <a href="{{ url_for('admin_products') }}">Products</a>
+  <a href="{{ url_for('admin_categories') }}">Categories</a>
+  <a href="{{ url_for('index') }}" target="_blank">View shop ↗</a>
+  <a href="{{ url_for('admin_logout') }}" style="margin-left:auto">Log out</a>
+  {% endif %}
+</div></nav>
+{% endblock %}

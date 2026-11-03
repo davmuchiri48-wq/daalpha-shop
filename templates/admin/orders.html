@@ -1,0 +1,9 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<h1>Orders</h1>
+<div class="cats" style="background:none;border:0;margin-bottom:12px"><div style="display:flex;gap:6px;flex-wrap:wrap">
+  <a href="{{ url_for('admin_orders') }}" class="{{ 'on' if not status }}">All</a>
+  {% for s in statuses %}<a href="{{ url_for('admin_orders', status=s) }}" class="{{ 'on' if status==s }}" style="text-transform:capitalize">{{ s }}</a>{% endfor %}
+</div></div>
+{% include "admin/_orders_table.html" with context %}
+{% endblock %}

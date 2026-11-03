@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <h1>Products</h1>
+  <a class="btn" href="{{ url_for('admin_product_form') }}">+ Add product</a>
+</div>
+<div class="table-wrap">
+<table>
+  <tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Profit</th><th>Stock</th><th>Status</th><th></th></tr>
+  {% for p in products %}
+  <tr>
+    <td>{% if p.image %}<img class="thumb" src="{{ p.image }}" alt="">{% endif %}</td>
+    <td>{{ p.name }}{% if p.featured %} ⭐{% endif %}</td>
+    <td>{{ p.category.name if p.category else '—' }}</td>
+    <td>{{ p.price|money }}</td>
+    <td>{% if p.dropship %}<b style="color:{{ 'var(--ok)' if p.profit > 0 else 'var(--danger)' }}">{{ p.profit|money }}</b>{% else %}—{% endif %}</td>
+    <td>{% if p.dropship %}<a href="{{ p.supplier_url }}" target="_blank" rel="noopener">AliExpress ↗</a>{% elif p.stock <= 3 %}<b style="color:var(--danger)">{{ p.stock }}</b>{% else %}{{ p.stock }}{% endif %}</td>
+    <td><span class="pill {{ 'paid' if p.active else 'cancelled' }}">{{ 'Visible' if p.active else 'Hidden' }}</span></td>
+    <td style="white-space:nowrap">
+      <a class="btn sm light" href="{{ url_for('admin_product_form', pid=p.id) }}">Edit</a>
+      <form method="post" action="{{ url_for('admin_product_delete', pid=p.id) }}" style="display:inline" onsubmit="return confirm('Delete {{ p.name|e }}?')">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="muted">No products yet.</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

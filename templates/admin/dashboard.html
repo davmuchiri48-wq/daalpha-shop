@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<h1>Dashboard</h1>
+<div class="stats">
+  <div class="stat"><span class="muted">Revenue (paid/delivered)</span><b>{{ stats.revenue|money }}</b></div>
+  <div class="stat"><span class="muted">Total orders</span><b>{{ stats.orders }}</b></div>
+  <div class="stat"><span class="muted">New orders</span><b>{{ stats.new }}</b></div>
+  <div class="stat"><span class="muted">Products</span><b>{{ stats.products }}</b></div>
+</div>
+{% if to_order %}
+<div class="panel" style="background:#fff7ed;border-color:#fed7aa;margin-bottom:20px">
+  <h3 style="margin-top:0">✈️ Orders to place on AliExpress ({{ to_order|length }})</h3>
+  {% for o in to_order %}
+  <div class="row"><span><b>{{ o.code }}</b> · {{ o.name }} · {{ o.total|money }} <span class="pill {{ o.payment_status }}">{{ o.payment_status }}</span></span>
+    <a class="btn sm" href="{{ url_for('admin_order_detail', oid=o.id) }}">Fulfil</a></div>
+  {% endfor %}
+</div>
+{% endif %}
+{% if stats.low_stock %}
+<div class="flash error">⚠️ Low stock:
+  {% for p in stats.low_stock %}<a href="{{ url_for('admin_product_form', pid=p.id) }}">{{ p.name }} ({{ p.stock }})</a>{{ ', ' if not loop.last }}{% endfor %}
+</div>
+{% endif %}
+<h2 class="section">Recent orders</h2>
+{% include "admin/_orders_table.html" with context %}
+{% endblock %}

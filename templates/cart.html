@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Cart · {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<h1>Your cart</h1>
+{% if lines %}
+<div class="cols">
+  <div class="panel">
+    <form method="post" action="{{ url_for('cart_update') }}" id="cartform">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="table-wrap" style="border:0">
+      <table>
+        <tr><th></th><th>Item</th><th>Qty</th><th>Total</th><th></th></tr>
+        {% for l in lines %}
+        <tr>
+          <td>{% if l.product.image %}<img class="thumb" src="{{ l.product.image }}" alt="">{% endif %}</td>
+          <td><a href="{{ url_for('product', pid=l.product.id) }}">{{ l.product.name }}</a><br><span class="muted">{{ l.product.price|money }}{% if l.product.dropship %} · 🚚 {{ l.product.delivery_days or DROPSHIP_DAYS }}{% endif %}</span></td>
+          <td><input type="number" name="qty_{{ l.product.id }}" value="{{ l.qty }}" min="0" max="{{ l.product.available }}" style="width:70px" onchange="this.form.submit()"></td>
+          <td><b>{{ l.total|money }}</b></td>
+          <td><button class="btn light sm" formaction="{{ url_for('cart_remove', pid=l.product.id) }}">✕</button></td>
+        </tr>
+        {% endfor %}
+      </table>
+      </div>
+    </form>
+  </div>
+  <div class="panel">
+    <div class="row"><span>Subtotal</span><span>{{ subtotal|money }}</span></div>
+    <div class="row"><span>Delivery</span><span>{{ 'FREE' if delivery == 0 else delivery|money }}</span></div>
+    {% if delivery %}<p class="muted" style="font-size:13px">Add {{ (free_over - subtotal)|money }} more for free delivery.</p>{% endif %}
+    <div class="row total"><span>Total</span><span>{{ (subtotal + delivery)|money }}</span></div>
+    <a class="btn accent block" href="{{ url_for('checkout') }}" style="margin-top:12px">Checkout</a>
+    <a class="btn light block" href="{{ url_for('index') }}" style="margin-top:8px">Continue shopping</a>
+  </div>
+</div>
+{% else %}
+<div class="panel" style="text-align:center">Your cart is empty. <a href="{{ url_for('index') }}">Start shopping →</a></div>
+{% endif %}
+{% endblock %}

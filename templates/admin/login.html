@@ -1,0 +1,12 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div class="panel" style="max-width:400px;margin:40px auto">
+  <h1 style="margin-top:0">Admin login</h1>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Email</label><input name="email" type="email" required>
+    <label>Password</label><input name="password" type="password" required>
+    <button class="btn block" style="margin-top:16px">Log in</button>
+  </form>
+</div>
+{% endblock %}

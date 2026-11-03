@@ -1,0 +1,19 @@
+{% set rows = recent if recent is defined else orders %}
+<div class="table-wrap">
+<table>
+  <tr><th>Code</th><th>Date</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th></th></tr>
+  {% for o in rows %}
+  <tr>
+    <td><b>{{ o.code }}</b></td>
+    <td>{{ o.created.strftime('%d %b %Y %H:%M') }}</td>
+    <td>{{ o.name }}<br><span class="muted">{{ o.phone }}</span></td>
+    <td>{{ o.total|money }}</td>
+    <td>{{ 'M-Pesa' if o.payment_method=='mpesa' else 'COD' }} <span class="pill {{ o.payment_status }}">{{ o.payment_status }}</span></td>
+    <td><span class="pill {{ o.status }}">{{ o.status }}</span></td>
+    <td><a class="btn sm light" href="{{ url_for('admin_order_detail', oid=o.id) }}">Open</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No orders yet.</td></tr>
+  {% endfor %}
+</table>
+</div>

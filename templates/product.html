@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<div class="pdp">
+  <div>{% if p.image %}<img src="{{ p.image }}" alt="{{ p.name }}">{% endif %}</div>
+  <div>
+    {% if p.category %}<a class="muted" href="{{ url_for('index', cat=p.category_id) }}">{{ p.category.name }}</a>{% endif %}
+    <h1>{{ p.name }}</h1>
+    <div class="price">{{ p.price|money }}{% if p.old_price and p.old_price > p.price %}<span class="old">{{ p.old_price|money }}</span>{% endif %}</div>
+    <p class="muted">{% if p.dropship %}✈️ Imported item · 🚚 Delivered in <b>{{ p.delivery_days or DROPSHIP_DAYS }}</b> · Pay with M-Pesa{% elif p.stock > 5 %}✅ In stock{% elif p.stock > 0 %}⚠️ Only {{ p.stock }} left{% else %}❌ Out of stock{% endif %}</p>
+    {% if p.available > 0 %}
+    <form method="post" action="{{ url_for('cart_add', pid=p.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="qty-row">
+        <input type="number" name="qty" value="1" min="1" max="{{ p.available }}">
+        <button class="btn" style="flex:1">Add to cart</button>
+      </div>
+      <button class="btn accent block" name="next" value="{{ url_for('checkout') }}">Buy now</button>
+    </form>
+    {% endif %}
+    <h3>Description</h3>
+    <p style="white-space:pre-line">{{ p.description or 'No description yet.' }}</p>
+    <p class="muted">🚚 Delivery countrywide · 💳 M-Pesa or pay on delivery</p>
+  </div>
+</div>
+{% if related %}
+<h2 class="section" style="margin-top:32px">You may also like</h2>
+<div class="grid">{% for p in related %}{% include "_card.html" %}{% endfor %}</div>
+{% endif %}
+{% endblock %}

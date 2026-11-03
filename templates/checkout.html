@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Checkout · {{ STORE_NAME }}{% endblock %}
+{% block content %}
+<h1>Checkout</h1>
+<form method="post" class="cols">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="panel">
+    <h3 style="margin-top:0">Delivery details</h3>
+    <label>Full name *</label><input name="name" required value="{{ form.get('name','') }}">
+    <label>Phone number * <span class="muted">(M-Pesa number if paying by M-Pesa)</span></label>
+    <input name="phone" required placeholder="0712345678" value="{{ form.get('phone','') }}">
+    <label>Email (optional)</label><input name="email" type="email" value="{{ form.get('email','') }}">
+    <label>Delivery address / town *</label>
+    <textarea name="address" rows="3" required placeholder="e.g. Kenyatta Ave, Nakuru, near Post Office">{{ form.get('address','') }}</textarea>
+    <label>Order notes</label><textarea name="notes" rows="2">{{ form.get('notes','') }}</textarea>
+
+    {% if has_dropship %}
+    <div class="flash success" style="margin-top:16px">✈️ Some items are imported and take <b>{{ DROPSHIP_DAYS }}</b> to arrive. You'll get a tracking number once shipped.</div>
+    {% endif %}
+    <h3>Payment</h3>
+    {% if mpesa_on %}
+    <label class="pay-opt"><input type="radio" name="payment_method" value="mpesa" checked> <span><b>M-Pesa</b><br><span class="muted">You'll get a prompt on your phone to enter your PIN</span></span></label>
+    {% endif %}
+    {% if has_dropship and mpesa_on %}
+    <p class="muted" style="font-size:13px">Imported items are paid for upfront with M-Pesa.</p>
+    {% elif has_dropship %}
+    <label class="pay-opt"><input type="radio" name="payment_method" value="cod" checked> <span><b>M-Pesa (we'll call you)</b><br><span class="muted">We'll send you payment details. Your order is placed once paid.</span></span></label>
+    {% else %}
+    <label class="pay-opt"><input type="radio" name="payment_method" value="cod" {{ 'checked' if not mpesa_on }}> <span><b>Pay on delivery</b><br><span class="muted">Pay cash or M-Pesa when you receive your order</span></span></label>
+    {% endif %}
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0">Order summary</h3>
+    {% for l in lines %}
+    <div class="row"><span>{{ l.qty }} × {{ l.product.name }}</span><span>{{ l.total|money }}</span></div>
+    {% endfor %}
+    <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px"><span>Subtotal</span><span>{{ subtotal|money }}</span></div>
+    <div class="row"><span>Delivery</span><span>{{ 'FREE' if delivery == 0 else delivery|money }}</span></div>
+    <div class="row total"><span>Total</span><span>{{ (subtotal + delivery)|money }}</span></div>
+    <button class="btn accent block" style="margin-top:12px">Place order</button>
+  </div>
+</form>
+{% endblock %}

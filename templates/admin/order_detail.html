@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<a href="{{ url_for('admin_orders') }}">← All orders</a>
+<h1>Order {{ order.code }}</h1>
+<div class="cols">
+  <div class="panel">
+    <h3 style="margin-top:0">Items</h3>
+    {% for it in order.items %}
+    <div class="row"><span>{{ it.qty }} × {{ it.name }} <span class="muted">@ {{ it.price|money }}</span>
+      {% if it.dropship %}<br><a class="btn sm accent" href="{{ it.supplier_url }}" target="_blank" rel="noopener">Order on AliExpress ↗</a>
+      <span class="muted" style="font-size:13px">your cost ≈ {{ (it.supplier_cost*it.qty)|money }}</span>{% endif %}</span>
+      <span>{{ (it.qty*it.price)|money }}</span></div>
+    {% endfor %}
+    {% if order.has_dropship %}
+    {% set ns = namespace(c=0) %}{% for it in order.items if it.dropship %}{% set ns.c = ns.c + it.supplier_cost*it.qty %}{% endfor %}
+    <p class="muted">AliExpress cost ≈ {{ ns.c|money }} · Est. profit <b>{{ (order.total - ns.c - order.delivery)|money }}</b></p>
+    {% endif %}
+    <div class="row"><span>Delivery</span><span>{{ order.delivery|money }}</span></div>
+    <div class="row total"><span>Total</span><span>{{ order.total|money }}</span></div>
+    {% if order.has_dropship %}
+    <h3>Shipping address to paste on AliExpress</h3>
+    <textarea id="addr" rows="4" readonly>{{ order.name }}
++{{ order.phone|replace(' ','') }}
+{{ order.address }}
+Kenya</textarea>
+    <button type="button" class="btn sm light" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('addr').value);this.textContent='Copied ✓'">Copy address</button>
+    {% endif %}
+    <h3>Customer</h3>
+    <p><b>{{ order.name }}</b><br>
+      📞 <a href="tel:{{ order.phone }}">{{ order.phone }}</a>
+      {% if order.email %}<br>✉️ {{ order.email }}{% endif %}<br>
+      📍 {{ order.address }}</p>
+    {% if order.notes %}<p><b>Notes:</b> {{ order.notes }}</p>{% endif %}
+    <p class="muted">Placed {{ order.created.strftime('%d %b %Y %H:%M') }} UTC
+      {% if order.mpesa_receipt %} · M-Pesa receipt <b>{{ order.mpesa_receipt }}</b>{% endif %}</p>
+  </div>
+  <form method="post" class="panel">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <h3 style="margin-top:0">Update</h3>
+    <label>Order status</label>
+    <select name="status">{% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s==order.status }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    <label>Payment status ({{ 'M-Pesa' if order.payment_method=='mpesa' else 'Pay on delivery' }})</label>
+    <select name="payment_status">{% for s in ['unpaid','pending','paid','failed'] %}<option value="{{ s }}" {{ 'selected' if s==order.payment_status }}>{{ s|capitalize }}</option>{% endfor %}</select>
+    {% if order.has_dropship %}
+    <label>AliExpress order number</label><input name="supplier_order_no" value="{{ order.supplier_order_no or '' }}">
+    <label>Tracking number</label><input name="tracking_no" value="{{ order.tracking_no or '' }}" placeholder="Customer sees this on their order page">
+    {% if order.payment_status != 'paid' %}<p style="color:var(--danger);font-size:13px">⚠️ Not paid yet — get payment before ordering on AliExpress.</p>{% endif %}
+    {% endif %}
+    <button class="btn block" style="margin-top:16px">Save</button>
+    <p class="muted" style="font-size:13px">Cancelling an order returns its items to stock.</p>
+  </form>
+</div>
+{% endblock %}

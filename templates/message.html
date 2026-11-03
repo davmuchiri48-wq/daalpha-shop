@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="panel" style="text-align:center;max-width:520px;margin:0 auto">
+  <h1>{{ title }}</h1><p>{{ text }}</p>
+  <a class="btn" href="{{ url_for('index') }}">Back to shop</a>
+</div>
+{% endblock %}

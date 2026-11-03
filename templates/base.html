@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ STORE_NAME }}{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% block header %}
+<div class="topbar">🚚 Fast delivery countrywide · Pay with M-Pesa or on delivery · Call {{ STORE_PHONE }}</div>
+<header class="site">
+  <div class="container">
+    <a class="logo" href="{{ url_for('index') }}">{{ STORE_NAME.split(' ')[0] }}<span>{{ (' ' ~ STORE_NAME.split(' ')[1:]|join(' ')) if STORE_NAME.split(' ')|length > 1 else '' }}</span></a>
+    <form class="search" action="{{ url_for('index') }}">
+      <input name="q" placeholder="Search products…" value="{{ request.args.get('q','') }}">
+      <button>Search</button>
+    </form>
+    <nav class="nav-links">
+      <a class="hide-sm" href="{{ url_for('track') }}">Track order</a>
+      <a class="cart-link" href="{{ url_for('cart') }}">🛒 Cart<span class="badge">{{ cart_count }}</span></a>
+    </nav>
+  </div>
+</header>
+<div class="cats"><div class="container">
+  <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint=='index' and not request.args.get('cat') }}">All</a>
+  {% for c in all_categories %}
+  <a href="{{ url_for('index', cat=c.id) }}" class="{{ 'on' if request.args.get('cat')|int == c.id }}">{{ c.name }}</a>
+  {% endfor %}
+</div></div>
+{% endblock %}
+<main><div class="container">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div></main>
+<footer class="site"><div class="container">
+  <div>© {{ now.year }} {{ STORE_NAME }}. All rights reserved.</div>
+  <div><a href="{{ url_for('track') }}">Track order</a> · Call/WhatsApp {{ STORE_PHONE }}</div>
+</div></footer>
+</body>
+</html>
