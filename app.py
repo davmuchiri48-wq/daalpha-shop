@@ -13,7 +13,7 @@ from functools import wraps
 
 import requests
 from flask import (Flask, render_template, request, redirect, url_for,
-                   session, flash, abort, jsonify)
+                   session, flash, abort, jsonify, make_response)
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, func, inspect, text
 
@@ -98,6 +98,14 @@ class Product(db.Model):
     @property
     def profit(self):
         return (self.price or 0) - (self.supplier_cost or 0) - (self.supplier_shipping or 0)
+
+
+class StoredImage(db.Model):
+    """Photos uploaded through Davetech Importer (e.g. local supplier products)."""
+    id = db.Column(db.Integer, primary_key=True)
+    mime = db.Column(db.String(30), nullable=False)
+    data = db.Column(db.LargeBinary, nullable=False)
+    created = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class Order(db.Model):
@@ -777,6 +785,40 @@ def api_order_update(code):
         o.status = d["status"]
     db.session.commit()
     return jsonify({"order": order_json(o)})
+
+
+@app.route("/api/integration/v1/images", methods=["POST"])
+@api_auth
+def api_image_upload():
+    d = request.get_json(silent=True) or {}
+    mime = str(d.get("mime") or "")
+    if mime not in ("image/jpeg", "image/png", "image/webp"):
+        return jsonify({"error": "only jpeg, png or webp images"}), 400
+    try:
+        raw = base64.b64decode(str(d.get("data") or ""), validate=True)
+    except (ValueError, TypeError):
+        return jsonify({"error": "invalid image data"}), 400
+    if not raw or len(raw) > 2 * 1024 * 1024:
+        return jsonify({"error": "image must be under 2 MB"}), 400
+    img = StoredImage(mime=mime, data=raw)
+    db.session.add(img)
+    db.session.commit()
+    base = BASE_URL or request.url_root.rstrip("/")
+    if base.startswith("http://") and "localhost" not in base and "127.0.0.1" not in base:
+        base = "https://" + base[len("http://"):]
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[mime]
+    return jsonify({"url": f"{base}/img/{img.id}.{ext}", "id": img.id})
+
+
+@app.route("/img/<int:image_id>.<ext>")
+def stored_image(image_id, ext):
+    img = db.session.get(StoredImage, image_id)
+    if not img:
+        abort(404)
+    resp = make_response(img.data)
+    resp.headers["Content-Type"] = img.mime
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resp
 
 
 @app.errorhandler(404)
