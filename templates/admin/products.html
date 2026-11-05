@@ -14,7 +14,7 @@
     <td>{{ p.category.name if p.category else '—' }}</td>
     <td>{{ p.price|money }}</td>
     <td>{% if p.dropship %}<b style="color:{{ 'var(--ok)' if p.profit > 0 else 'var(--danger)' }}">{{ p.profit|money }}</b>{% else %}—{% endif %}</td>
-    <td>{% if p.dropship %}<a href="{{ p.supplier_url }}" target="_blank" rel="noopener">AliExpress ↗</a>{% elif p.stock <= 3 %}<b style="color:var(--danger)">{{ p.stock }}</b>{% else %}{{ p.stock }}{% endif %}</td>
+    <td>{% if p.dropship %}<a href="{{ p.supplier_url }}" target="_blank" rel="noopener">{{ 'Local supplier ↗' if 'wa.me' in (p.supplier_url or '') else 'AliExpress ↗' }}</a>{% elif p.stock <= 3 %}<b style="color:var(--danger)">{{ p.stock }}</b>{% else %}{{ p.stock }}{% endif %}</td>
     <td><span class="pill {{ 'paid' if p.active else 'cancelled' }}">{{ 'Visible' if p.active else 'Hidden' }}</span></td>
     <td style="white-space:nowrap">
       <a class="btn sm light" href="{{ url_for('admin_product_form', pid=p.id) }}">Edit</a>

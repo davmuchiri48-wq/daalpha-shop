@@ -7,7 +7,7 @@
     <h3 style="margin-top:0">Items</h3>
     {% for it in order.items %}
     <div class="row"><span>{{ it.qty }} × {{ it.name }} <span class="muted">@ {{ it.price|money }}</span>
-      {% if it.dropship %}<br><a class="btn sm accent" href="{{ it.supplier_url }}" target="_blank" rel="noopener">Order on AliExpress ↗</a>
+      {% if it.dropship %}<br><a class="btn sm accent" href="{{ it.supplier_url }}" target="_blank" rel="noopener">{{ 'WhatsApp supplier ↗' if 'wa.me' in (it.supplier_url or '') else 'Order on AliExpress ↗' }}</a>
       <span class="muted" style="font-size:13px">your cost ≈ {{ (it.supplier_cost*it.qty)|money }}</span>{% endif %}</span>
       <span>{{ (it.qty*it.price)|money }}</span></div>
     {% endfor %}
